@@ -31,7 +31,8 @@ from tenacity import retry, wait_exponential, stop_after_attempt
 from functools import wraps
 from deepmultilingualpunctuation import PunctuationModel
 import time
-
+import datetime
+from datetime import datetime
 
 
 # Load environment variables from .env file
@@ -47,8 +48,8 @@ db_name = os.getenv("DB_NAME")
 client = MongoClient(connection_string)
 db = client[db_name]
 
-nltk.download('punkt')
-nltk.download('punkt_tab')
+#nltk.download('punkt')
+#nltk.download('punkt_tab')
 
 # test
 # try:
@@ -57,8 +58,7 @@ nltk.download('punkt_tab')
 # except Exception as e:
 #     print(e)
 
-nltk.download('punkt')
-nltk.download('punkt_tab')
+
 
 def ensure_nltk_data():
     try:
@@ -77,20 +77,7 @@ def get_authenticated_service():
     return build('youtube', 'v3', developerKey=api_key)
 
 
-# def search_videos(service, query):
-#     request = service.search().list(
-#         part="snippet",
-#         maxResults=3,
-#         q=query
-#     )
-#     response = request.execute()
-#
-#     video_ids = []
-#     for item in response['items']:
-#         if item['id']['kind'] == 'youtube#video':
-#             video_ids.append(item['id']['videoId'])
-#
-#     return video_ids
+
 def rate_limit_decorator(max_calls, period):
     def decorator(func):
         last_reset = time.time()
@@ -184,84 +171,17 @@ def get_video_transcript(video_id, language='en', filter_fillers=None):
         else:
             return ' '.join([segment['text'] for segment in transcript])
     except NoTranscriptFound:
-            print("no transcript from api")
+            logging.error("no transcript from api")
             return None
     except TranscriptsDisabled:
-        print(f"Transcripts are disabled for video {video_id}.")
+        logging.error(f"Transcripts are disabled for video {video_id}.")
         return None
     except Exception as e:
-        print(f"Error fetching transcript for video {video_id}: {str(e)}")
+        logging.error(f"Error fetching transcript for video {video_id}: {str(e)}")
         return None
 
 
-# def transcribe_video(video_id):
-#
-#
-#     try:
-#         video_url = f"https://www.youtube.com/watch?v={video_id}"
-#         yt = YouTube(video_url)
-#         audio_stream = yt.streams.filter(progressive=True, file_extension='mp4').first()
-#
-#         if audio_stream:
-#             audio_file = audio_stream.download(output_path='./temp_audio')
-#
-#             # Use a speech recognition library here
-#             # For example, with googletrans and SpeechRecognition:
-#             from googletrans import Translator
-#             from speech_recognition import Recognizer
-#
-#             translator = Translator()
-#             recognizer = Recognizer()
-#
-#             transcript = recognizer.recognize_google(audio_file)
-#
-#             # Translate to English if needed
-#             english_transcript = translator.translate(transcript, src='auto', dest='en').text
-#
-#             return english_transcript.strip()
-#         else:
-#             print("No audio stream found.")
-#             return None
-#     except Exception as e:
-#         print(f"An error occurred: {str(e)}")
-#         return None
 
-
-
-# def transcribe_video(video_id):
-#
-#     video_url = f'https://www.youtube.com/watch?v={video_id}'
-#
-#
-#     ydl_opts = {
-#         'format': 'bestaudio/best',
-#         'quiet': True,
-#         'no_warnings': True,
-#         'skip_download': True,
-#         'postprocessors': [{
-#             'key': 'FFmpegExtractAudio',
-#             'preferredcodec': 'wav',
-#             'preferredquality': '192',
-#         }],
-#     }
-#
-#     try:
-#
-#         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-#             info_dict = ydl.extract_info(video_url, download=False)
-#             audio_url = info_dict['formats'][0]['url']
-#
-
-#         recognizer = sr.Recognizer()
-#         with sr.AudioFile(audio_url) as source:
-#             audio_data = recognizer.record(source)
-#             transcript = recognizer.recognize_google(audio_data)
-#
-#         return transcript
-#
-#     except Exception as e:
-#         print(f"An error occurred: {str(e)}")
-#         return None
 
 @rate_limit_decorator(max_calls=100, period=100)
 @safe_api_call
@@ -329,40 +249,7 @@ def get_channel_videos(service, channel_id):
 
 @rate_limit_decorator(max_calls=100, period=100)
 @safe_api_call
-# def analyze_sentiment(text):
-#     try:
-#         client = language_v2.LanguageServiceClient()
-#
-#         sentences = sent_tokenize(text)
-#         total_score, total_magnitude, count = 0, 0 ,0
-#
-#         for x in sentences:
-#             if x.strip():
-#                 document = language_v2.types.Document(
-#                     content=text, type_=language_v2.types.Document.Type.PLAIN_TEXT
-#                 )
-#
-#                 response = client.analyze_sentiment(
-#                     request={"document": document}
-#                 )
-#                 sentiment = response.document_sentiment
-#                 total_score += sentiment.score
-#                 total_magnitude += sentiment.magnitude
-#                 count += 1
-#
-#         if count > 0:
-#             average_score = total_score / count
-#             average_magnitude = total_magnitude / count
-#         else:
-#             average_score = 0
-#             average_magnitude = 0
-#
-#
-#         return average_score, average_magnitude
-#
-#     except Exception as e:
-#         print(f"Error in sentiment analysis: {str(e)}")
-#         return 0, 0
+
 
 def split_text_into_chunks(text, chunk_size=400):
 
@@ -392,9 +279,10 @@ def split_text_into_chunks(text, chunk_size=400):
     return chunks
 
 def analyze_sentiment(text):
-    print(f"this is the text i got{text}")
+
     try:
 
+        print(f"Attempting sentiment analysis at {datetime.now}")
 
         client = language_v2.LanguageServiceClient()
 
@@ -424,7 +312,7 @@ def analyze_sentiment(text):
         return average_score, average_magnitude
 
     except Exception as e:
-        print(f"Error in sentiment analysis: {str(e)}")
+        logging.error(f"Error in sentiment analysis: {str(e)}")
         return 0, 0
 
 
@@ -442,29 +330,32 @@ def get_duration(duration):
 #
 #         if views > 0:
 #             like_rate =
-# def create_overview(videos, channel_id, channel_name):
-#
-#     total_views = sum(video['views'] for video in videos)
-#
-#     total_sentiment = sum(video['sentiment_score'] for video in videos)
-#     total_magnitude = sum(video['sentiment_magnitude'] for video in videos)
-#     video_count = len(videos)
-#
-#     avg_sentiment = total_sentiment / video_count if video_count > 0 else 0
-#     avg_magnitude = total_magnitude / video_count if video_count > 0 else 0
-#
-#     overview_doc = {
-#         '_id': 'channel_overview',
-#         'document_type': 'overview',
-#         'channel_name': channel_name,
-#         'channel_id': channel_id,
-#         'total_views': total_views,
-#         'video_count': video_count,
-#         'average_sentiment': avg_sentiment,
-#         'average_magnitude': avg_magnitude,
-#         'last_updated': datetime.now(),
-#
-#     }
+def create_overview(videos, channel_id, channel_name):
+
+    total_views = sum(video['views'] for video in videos)
+
+    total_sentiment = sum(video['sentiment_score'] for video in videos)
+    print(total_sentiment)
+    total_magnitude = sum(video['sentiment_magnitude'] for video in videos)
+    video_count = len(videos)
+
+    avg_sentiment = total_sentiment / video_count if video_count > 0 else 0
+    avg_magnitude = total_magnitude / video_count if video_count > 0 else 0
+
+    overview_doc = {
+        '_id': 'channel_overview',
+        'document_type': 'overview',
+        'channel_name': channel_name,
+        'channel_id': channel_id,
+        'total_views': total_views,
+        'video_count': video_count,
+        'average_sentiment': avg_sentiment,
+        'average_magnitude': avg_magnitude,
+        'last_updated': datetime.now(),
+
+    }
+
+    return overview_doc
 
 @rate_limit_decorator(max_calls=30, period=60)
 @safe_api_call
@@ -479,15 +370,23 @@ def store_videos(videos, db, channel_id, channel_handle):
     else:
         print(f"Creating new collection '{collection_name}'.")
 
+
+    try:
+        collection.delete_one({'_id': 'channel_overview'})
+    except Exception as e:
+        logging.error(f"Error deleting existing overview: {str(e)}")
+
+
+    processed_videos = []
     transcript_stats = defaultdict(int)
     total_score = 0
     total_magnitude = 0
     count = 0
     print(f"Total videos to process: {len(videos)}")
-    print(videos)
-    print(videos[0])
-    print(videos[1])
-    print(videos[2])
+
+
+
+
     for v in videos:
         print(f"Processing video: {v['video_id']}")
         sentiment_score, sentiment_magnitude = analyze_sentiment(v['transcript'])
@@ -499,7 +398,7 @@ def store_videos(videos, db, channel_id, channel_handle):
             'sentiment_score': sentiment_score,
             'sentiment_magnitude': sentiment_score,
         }
-
+        processed_videos.append(video_doc)
         try:
             collection.update_one(
                 {'video_id': v['video_id']},
@@ -522,7 +421,25 @@ def store_videos(videos, db, channel_id, channel_handle):
             average_score = 0
             average_magnitude = 0
 
+    overview = create_overview(processed_videos, channel_id, channel_handle)
+
+
+
+    try:
+
+        collection.update_one(
+            {'_id': 'channel_overview'},
+            {'$set': overview},
+            upsert=True
+        )
+
+
+    except Exception as e:
+        logging.error(f"error in storing videos: {str(e)}")
+        return None
+
     return transcript_stats, average_score, average_magnitude
+
 
 
 
@@ -539,14 +456,14 @@ def main():
 
 
 
-    query = input("Enter YT channel URL > ")
+    query = input("Enter YT channel name > ")
     channel_id = get_channel_id(youtube_service, query)
     channel_handle = query.strip('@').lower().replace(' ', '_')
-    ensure_nltk_data()
+    #ensure_nltk_data()
 
     if channel_id:
         videos = get_channel_videos(youtube_service, channel_id)
-        print(videos)
+
         x = store_videos(videos, db, channel_id, channel_handle)
 
         transcript_stats = x[0]
